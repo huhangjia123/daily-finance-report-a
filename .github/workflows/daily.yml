@@ -1,29 +1,41 @@
-name: 每日金融数据日报
+name: Finance Reports
 
 on:
   schedule:
-    - cron: "0 1 * * *"   # 每天 UTC 1点运行，北京时间=9点
-  workflow_dispatch:       # 允许手动触发
+    - cron: "0 1 * * *"   # 每天 09:00 (UTC+8)
+    - cron: "0 1 * * 1"   # 每周一 09:00
+    - cron: "0 1 1 * *"   # 每月1号 09:00
+  workflow_dispatch:
 
 jobs:
-  report:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 拉取代码
-        uses: actions/checkout@v3
-
-      - name: 设置 Python 环境
+      - uses: actions/checkout@v3
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-
-      - name: 安装依赖
+      - name: Install dependencies
         run: pip install requests
-
-      - name: 运行日报脚本
+      - name: Run daily report
+        if: github.event.schedule == '0 1 * * *'
+        run: python daily_report.py daily
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
-        run: python daily_report.py
+      - name: Run weekly report
+        if: github.event.schedule == '0 1 * * 1'
+        run: python daily_report.py weekly
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+      - name: Run monthly report
+        if: github.event.schedule == '0 1 1 * *'
+        run: python daily_report.py monthly
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
