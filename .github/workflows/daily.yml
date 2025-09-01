@@ -2,13 +2,14 @@ name: Finance Reports
 
 on:
   schedule:
-    - cron: "0 1 * * *"   # 每天 09:00 (UTC+8)
-    - cron: "0 1 * * 1"   # 每周一 09:00
-    - cron: "0 1 1 * *"   # 每月1号 09:00
-  workflow_dispatch:
+    - cron: "0 1 * * *"   # 每天 09:00 北京时间 → 日报
+    - cron: "0 1 * * 1"   # 每周一 09:00 北京时间 → 周报
+    - cron: "0 1 1 * *"   # 每月1号 09:00 北京时间 → 月报
+    - cron: "0 1 1 1,4,7,10 *" # 季度月1号 → 季报
+  workflow_dispatch:      # 手动触发
 
 jobs:
-  build:
+  report:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -18,24 +19,28 @@ jobs:
           python-version: "3.10"
       - name: Install dependencies
         run: pip install requests
-      - name: Run daily report
-        if: github.event.schedule == '0 1 * * *'
-        run: python daily_report.py daily
+      - name: Run Report
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
-      - name: Run weekly report
-        if: github.event.schedule == '0 1 * * 1'
-        run: python daily_report.py weekly
-        env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
-      - name: Run monthly report
-        if: github.event.schedule == '0 1 1 * *'
-        run: python daily_report.py monthly
-        env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+        run: |
+          # 根据触发时间判断报告类型
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            python finance_report.py daily
+          else
+            DAY=$(date +%d)
+            WEEKDAY=$(date +%u)
+            MONTH=$(date +%m)
+            if [[ $WEEKDAY -eq 1 ]]; then
+              python finance_report.py weekly
+            elif [[ $DAY -eq 1 ]]; then
+              if [[ $MONTH =~ ^(1|4|7|10)$ ]]; then
+                python finance_report.py quarterly
+              else
+                python finance_report.py monthly
+              fi
+            else
+              python finance_report.py daily
+            fi
+          fi
